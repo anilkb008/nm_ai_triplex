@@ -1,0 +1,47 @@
+version: "3.9"
+
+services:
+  # ── Main solve endpoint (competition entry point) ──────────────────────────
+  solve-api:
+    build:
+      context: ./src/SolveApi
+      dockerfile: Dockerfile
+    image: nm-ai-triplex/solve-api:latest
+    container_name: triplex-solve-api
+    ports:
+      - "8080:8080"
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:8080
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  # ── Tripletex MCP Server (standalone, for Claude Desktop / MCP clients) ────
+  triplex-mcp:
+    build:
+      context: ./src/TripletexMcpServer
+      dockerfile: Dockerfile
+    image: nm-ai-triplex/mcp-server:latest
+    container_name: triplex-mcp-server
+    ports:
+      - "5000:5000"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:5000
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+networks:
+  default:
+    name: triplex-net

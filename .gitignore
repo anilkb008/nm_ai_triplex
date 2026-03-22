@@ -1,0 +1,22 @@
+# Environment
+.env
+
+# .NET
+bin/
+obj/
+*.user
+.vs/
+*.suo
+*.userprefs
+
+# Publish artifacts
+publish/
+out/
+
+# Docker
+*.override.yml
+
+# IDE
+.idea/
+.vscode/
+*.swp
