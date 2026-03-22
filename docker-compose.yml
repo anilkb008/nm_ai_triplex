@@ -1,7 +1,21 @@
 version: "3.9"
 
+# ── How it works ──────────────────────────────────────────────────────────────
+#
+#  1. POST /solve  →  SolveApi
+#  2. SolveApi calls Anthropic API with mcp_servers pointing to TripletexMcpServer
+#  3. Anthropic connects to TripletexMcpServer (must be publicly reachable!),
+#     discovers tools, and handles the entire tool-calling loop server-side.
+#  4. TripletexMcpServer calls the competition's Tripletex sandbox.
+#  5. SolveApi returns {"status":"completed"} when Anthropic is done.
+#
+# IMPORTANT: MCP_SERVER_URL must be the PUBLIC HTTPS URL of TripletexMcpServer.
+# Anthropic's servers need to reach it from the internet.
+# Example: https://your-vm.example.com/mcp  (via Nginx reverse proxy)
+# ─────────────────────────────────────────────────────────────────────────────
+
 services:
-  # ── Main solve endpoint (competition entry point) ──────────────────────────
+  # ── Main solve endpoint (competition entry point) ─────────────────────────
   solve-api:
     build:
       context: ./src/SolveApi
@@ -12,8 +26,11 @@ services:
       - "8080:8080"
     environment:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - MCP_SERVER_URL=${MCP_SERVER_URL}        # e.g. https://your-vm.example.com/mcp
       - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://+:8080
+    depends_on:
+      - triplex-mcp
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
@@ -22,7 +39,9 @@ services:
       retries: 3
       start_period: 15s
 
-  # ── Tripletex MCP Server (standalone, for Claude Desktop / MCP clients) ────
+  # ── Tripletex MCP Server ─────────────────────────────────────────────────
+  # Anthropic's API connects to this directly — it MUST be publicly reachable.
+  # Expose port 5000 and proxy with Nginx + TLS (see README for Nginx config).
   triplex-mcp:
     build:
       context: ./src/TripletexMcpServer

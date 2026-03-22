@@ -16,8 +16,15 @@ builder.Services.AddHttpClient("Claude", client =>
     client.BaseAddress = new Uri("https://api.anthropic.com");
     client.DefaultRequestHeaders.Add("x-api-key", apiKey);
     client.DefaultRequestHeaders.Add("anthropic-version", "2023-06-01");
+
+    // Enable MCP client support — Anthropic connects to our MCP server and
+    // handles the entire tool-calling loop server-side.
+    client.DefaultRequestHeaders.Add("anthropic-beta", "mcp-client-2025-11-20");
+
     client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-    client.Timeout = TimeSpan.FromMinutes(5);
+
+    // MCP tool calls can take several minutes; allow enough time.
+    client.Timeout = TimeSpan.FromMinutes(10);
 });
 
 builder.Services.AddScoped<AgentService>();
@@ -33,7 +40,9 @@ app.MapHealthChecks("/health");
 app.MapGet("/", () => Results.Ok(new
 {
     service = "Tripletex AI Accounting Agent",
-    version = "1.0",
+    version = "2.0",
+    model = "claude-opus-4-6",
+    approach = "Anthropic native MCP — tool loop handled server-side by Anthropic",
     endpoints = new[] { "POST /solve", "GET /health" }
 }));
 
@@ -72,12 +81,11 @@ app.MapPost("/solve", async (HttpRequest httpRequest, AgentService agentService,
     }
     catch (OperationCanceledException)
     {
-        return Results.StatusCode(408); // Request timeout
+        return Results.StatusCode(408);
     }
     catch (Exception ex)
     {
-        logger.LogError(ex, "Agent failed to solve task");
-        // Return completed anyway — partial work may have been done
+        logger.LogError(ex, "Agent failed");
         return Results.Ok(new SolveResponse { Status = "completed" });
     }
 });
