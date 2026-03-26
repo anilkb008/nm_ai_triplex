@@ -5,7 +5,7 @@ using TripletexMcpServer.Client;
 namespace TripletexMcpServer.Tools;
 
 [McpServerToolType]
-public static class CustomerTools
+public class CustomerTools
 {
     [McpServerTool(Name = "search_customers"), Description("Search for customers in Tripletex.")]
     public static async Task<string> SearchCustomers(

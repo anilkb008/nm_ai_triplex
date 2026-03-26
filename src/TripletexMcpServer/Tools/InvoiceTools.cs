@@ -6,7 +6,7 @@ using TripletexMcpServer.Client;
 namespace TripletexMcpServer.Tools;
 
 [McpServerToolType]
-public static class InvoiceTools
+public class InvoiceTools
 {
     [McpServerTool(Name = "search_invoices"), Description("Search for invoices.")]
     public static async Task<string> SearchInvoices(

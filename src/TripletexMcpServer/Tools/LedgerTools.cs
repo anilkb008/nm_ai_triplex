@@ -6,7 +6,7 @@ using TripletexMcpServer.Client;
 namespace TripletexMcpServer.Tools;
 
 [McpServerToolType]
-public static class LedgerTools
+public class LedgerTools
 {
     [McpServerTool(Name = "get_accounts"), Description("Get the chart of accounts (ledger accounts).")]
     public static async Task<string> GetAccounts(

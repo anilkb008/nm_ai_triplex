@@ -5,7 +5,7 @@ using TripletexMcpServer.Client;
 namespace TripletexMcpServer.Tools;
 
 [McpServerToolType]
-public static class ProjectTools
+public class ProjectTools
 {
     [McpServerTool(Name = "search_projects"), Description("Search for projects.")]
     public static async Task<string> SearchProjects(
