@@ -2,19 +2,42 @@ version: "3.9"
 
 # ── How it works ──────────────────────────────────────────────────────────────
 #
-#  1. POST /solve  →  SolveApi
+#  1. POST /solve  →  Nginx (8443) → SolveApi (8080)
 #  2. SolveApi calls Anthropic API with mcp_servers pointing to TripletexMcpServer
-#  3. Anthropic connects to TripletexMcpServer (must be publicly reachable!),
+#  3. Anthropic connects to TripletexMcpServer via Nginx HTTPS (443),
 #     discovers tools, and handles the entire tool-calling loop server-side.
 #  4. TripletexMcpServer calls the competition's Tripletex sandbox.
 #  5. SolveApi returns {"status":"completed"} when Anthropic is done.
 #
 # IMPORTANT: MCP_SERVER_URL must be the PUBLIC HTTPS URL of TripletexMcpServer.
 # Anthropic's servers need to reach it from the internet.
-# Example: https://your-vm.example.com/mcp  (via Nginx reverse proxy)
+# Example: https://your-vm.example.com/mcp  (proxied by Nginx on port 443)
+#
+# TLS CERTIFICATES:
+#   Place your cert/key at ./nginx/certs/fullchain.pem and ./nginx/certs/privkey.pem
+#   For Let's Encrypt (recommended):
+#     certbot certonly --standalone -d your-vm.example.com
+#     cp /etc/letsencrypt/live/your-vm.example.com/fullchain.pem ./nginx/certs/
+#     cp /etc/letsencrypt/live/your-vm.example.com/privkey.pem   ./nginx/certs/
 # ─────────────────────────────────────────────────────────────────────────────
 
 services:
+  # ── Nginx (TLS termination) ───────────────────────────────────────────────
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: triplex-nginx
+    ports:
+      - "80:80"       # HTTP → redirect to HTTPS
+      - "443:443"     # MCP Server (Anthropic connects here)
+      - "8443:8443"   # Solve API
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+    depends_on:
+      - solve-api
+      - triplex-mcp
+    restart: unless-stopped
+
   # ── Main solve endpoint (competition entry point) ─────────────────────────
   solve-api:
     build:
@@ -22,8 +45,8 @@ services:
       dockerfile: Dockerfile
     image: nm-ai-triplex/solve-api:latest
     container_name: triplex-solve-api
-    ports:
-      - "8080:8080"
+    expose:
+      - "8080"
     environment:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - MCP_SERVER_URL=${MCP_SERVER_URL}        # e.g. https://your-vm.example.com/mcp
@@ -39,17 +62,17 @@ services:
       retries: 3
       start_period: 15s
 
-  # ── Tripletex MCP Server ─────────────────────────────────────────────────
-  # Anthropic's API connects to this directly — it MUST be publicly reachable.
-  # Expose port 5000 and proxy with Nginx + TLS (see README for Nginx config).
+  # ── Tripletex MCP Server ──────────────────────────────────────────────────
+  # Anthropic's API connects to this via Nginx on port 443.
+  # Internal HTTP is fine — Nginx handles TLS termination.
   triplex-mcp:
     build:
       context: ./src/TripletexMcpServer
       dockerfile: Dockerfile
     image: nm-ai-triplex/mcp-server:latest
     container_name: triplex-mcp-server
-    ports:
-      - "5000:5000"
+    expose:
+      - "5000"
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://+:5000
